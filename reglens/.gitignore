@@ -1,0 +1,14 @@
+# Secrets — never commit
+.env
+
+# Corpus documents — live in Neon after ingestion, not in git
+data/*.pdf
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# OS
+.DS_Store

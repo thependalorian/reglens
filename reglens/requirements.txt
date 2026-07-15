@@ -1,0 +1,49 @@
+# Profile B — LangGraph + Pydantic AI (Ketchup DEV stack)
+pydantic>=2.11.7,<2.12
+pydantic-ai==0.3.5
+pydantic-ai-slim==0.3.5
+pydantic-settings>=2.8
+
+langgraph==0.5.3
+langgraph-checkpoint==2.1.0
+langgraph-prebuilt==0.5.2
+langgraph-checkpoint-postgres==2.0.23
+
+# AG-UI protocol bridge for the CopilotKit frontend (/agui endpoint).
+# 0.0.23 is the last release compatible with langgraph 0.5.x;
+# newer releases require langgraph>=1 / langchain>=1.2.
+ag-ui-langgraph==0.0.23
+langchain==0.3.30
+
+fastapi>=0.115.12
+uvicorn>=0.34
+httpx==0.28.1
+openai>=1.90
+python-dotenv>=1.0
+python-multipart>=0.0.20
+asyncpg==0.30.0
+
+aiohttp>=3.9
+langfuse>=3.2
+pgvector>=0.3.6
+
+pytest>=8.4
+pytest-asyncio>=1.0
+
+# ============================================================
+# Document Parsing
+# ============================================================
+
+# Docling — RECOMMENDED local parser.
+# AI/ML layout understanding, preserves table structure, handles
+# multi-column layouts, no API key required. Runs fully locally —
+# no corpus data leaves the regulator's environment.
+# Handles: PDF, DOCX, PPTX, XLSX, HTML.
+# Critical for: FATF reports, Basel documents, SADC/BoN circulars.
+docling==2.113.0
+
+# LlamaParse — OPTIONAL cloud parser (best quality).
+# Requires LLAMA_CLOUD_API_KEY (10k pages/month free).
+# Uncomment to enable:
+# llama-parse==0.6.94
+# llama-index-core==0.14.23

@@ -1,0 +1,233 @@
+/* Inter as the Helvetica-family grotesque (Bank of Namibia uses Helvetica /
+   Arial); Georgia carries the serif display. Weight 300 enables the
+   whisper-weight display headings. */
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap");
+
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ============================================================
+   RegLens design tokens — Bank of Namibia brand (burgundy + gold)
+   in a Perplexity-structure system: white cards floating on a
+   near-white canvas, depth through color layering (never shadows),
+   serif display + Helvetica-family sans, 4 / 12 / 40 radii.
+   ============================================================ */
+
+@theme inline {
+  /* Brand */
+  --color-burgundy: var(--burgundy);
+  --color-burgundy-deep: var(--burgundy-deep);
+  --color-gold: var(--gold);
+  --color-gold-deep: var(--gold-deep);
+  --color-ochre: var(--ochre);
+  --color-olive: var(--olive);
+  --color-on-burgundy: var(--on-burgundy);
+
+  /* Surfaces + ink (flip with theme) */
+  --color-canvas: var(--canvas);
+  --color-card: var(--card-surface);
+  --color-deep: var(--deep);
+  --color-ink: var(--ink);
+  --color-ink-muted: var(--ink-muted);
+  --color-ink-subtle: var(--ink-subtle);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+
+  /* Type */
+  --font-sans: var(--font-body);
+  --font-display: var(--font-serif);
+  --font-mono: var(--font-code);
+
+  /* Radii — Perplexity scale */
+  --radius-sm2: 4px;
+  --radius-card: 12px;
+  --radius-pill: 40px;
+}
+
+:root {
+  /* Fonts */
+  --font-body: "Inter", ui-sans-serif, -apple-system, "Helvetica Neue",
+    Helvetica, Arial, sans-serif;
+  --font-serif: Georgia, "Times New Roman", ui-serif, serif;
+  --font-code: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* Brand — fixed (from the BoN Corporate Identity Manual) */
+  --burgundy: #993333; /* BoN maroon — Pantone 506, #993333 */
+  --burgundy-deep: #7a2626;
+  --gold: #999966; /* BoN gold — Pantone 871, #999966 (accent only) */
+  --gold-deep: #7d6a2e; /* accessible gold for text / badges on white */
+  --ochre: #8a6d1f; /* medium-severity / warn */
+  --olive: #5f6b3a; /* positive / verified / active — warm, gold-adjacent */
+  --on-burgundy: #faf8f6;
+
+  /* Surfaces + ink — LIGHT (BoN mandates white backgrounds) */
+  --canvas: #faf8f6; /* near-white, faintest warmth (not cream-yellow) */
+  --card-surface: #ffffff; /* pure white cards float above canvas */
+  --deep: #993333; /* burgundy strong surface (headers, like BoN sections) */
+  --ink: #1f1a18; /* warm near-black — 15:1 on white */
+  --ink-muted: #6e655f; /* secondary text — 4.7:1 on white */
+  --ink-subtle: #938a83; /* captions / disabled */
+  --line: #e7e2dd; /* hairline divider */
+  --line-strong: #d6cfc8;
+
+  /* Legacy template + CopilotKit chat vars, recolored to BoN */
+  --background: var(--canvas);
+  --foreground: var(--ink);
+  --card: var(--card-surface);
+  --card-foreground: var(--ink);
+  --primary: var(--burgundy);
+  --primary-foreground: #ffffff;
+  --secondary: #f1ece7;
+  --secondary-foreground: var(--ink);
+  --muted: #f1ece7;
+  --muted-foreground: var(--ink-muted);
+  --accent: #f3eede;
+  --accent-foreground: var(--ink);
+  --destructive: #993333;
+  --destructive-foreground: #ffffff;
+  --border: var(--line);
+  --input: var(--line-strong);
+  --ring: var(--gold);
+  --radius: 0.75rem;
+  --cpk-default-font-family: var(--font-body);
+  --cpk-ambient-gradient: linear-gradient(
+    90deg,
+    #993333 0%,
+    #b0824a 55%,
+    #999966 100%
+  );
+}
+
+:root.dark,
+.dark {
+  --canvas: #17130f;
+  --card-surface: #211b16;
+  --deep: #7a2626;
+  --ink: #f4efe9;
+  --ink-muted: #a89f97;
+  --ink-subtle: #7d746c;
+  --line: #352c25;
+  --line-strong: #453a31;
+
+  /* Brand hues lighten on dark so text/badges stay legible; filled
+     buttons pair the light hue with a dark on-burgundy foreground. */
+  --burgundy: #d98b8b;
+  --burgundy-deep: #e2a2a2;
+  --gold: #c9b57e;
+  --gold-deep: #c9a54a;
+  --ochre: #d0ab52;
+  --olive: #9aab63;
+  --on-burgundy: #201612;
+
+  --background: var(--canvas);
+  --foreground: var(--ink);
+  --card: var(--card-surface);
+  --card-foreground: var(--ink);
+  --primary: #d98b8b;
+  --primary-foreground: #17130f;
+  --secondary: #2b241e;
+  --secondary-foreground: var(--ink);
+  --muted: #2b241e;
+  --muted-foreground: var(--ink-muted);
+  --accent: #2f271f;
+  --accent-foreground: var(--ink);
+  --destructive: #d98b8b;
+  --destructive-foreground: #17130f;
+  --border: var(--line);
+  --input: var(--line-strong);
+  --ring: var(--gold-deep);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+body,
+html {
+  height: 100%;
+}
+
+/* Serif display headings carry the whisper-weight editorial gravitas. */
+.font-display {
+  font-family: var(--font-serif);
+}
+
+/* Brand the CopilotKit v2 chat to BoN without disturbing the zinc ramp that
+   carries its text contrast: fonts to our stack, its single accent (used for
+   focus rings / links) to burgundy, and the ambient wash to burgundy-gold. */
+.cpk-container,
+[class*="cpk-"] {
+  --cpk-color-blue-500: var(--burgundy);
+  --cpk-default-font-family: var(--font-body);
+  --cpk-font-sans: var(--font-body);
+  --cpk-font-mono: var(--font-code);
+}
+
+/* Position the CopilotKit inspector FAB beneath the Chat/App toggle. */
+cpk-web-inspector {
+  top: 62px !important;
+  bottom: auto !important;
+  right: 16px !important;
+}
+
+/* RegLens report markdown */
+.reglens-report h1 {
+  font-family: var(--font-serif);
+  font-size: 1.125rem;
+  font-weight: 400;
+  margin: 0.9rem 0 0.4rem;
+  color: var(--ink);
+}
+.reglens-report h2 {
+  font-family: var(--font-serif);
+  font-size: 1rem;
+  font-weight: 400;
+  margin: 0.8rem 0 0.35rem;
+  color: var(--ink);
+}
+.reglens-report h3 {
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 0.7rem 0 0.25rem;
+  color: var(--ink-muted);
+}
+.reglens-report p {
+  margin: 0.45rem 0;
+  line-height: 1.6;
+}
+.reglens-report ul,
+.reglens-report ol {
+  margin: 0.45rem 0 0.45rem 1.1rem;
+  list-style: disc;
+}
+.reglens-report ol {
+  list-style: decimal;
+}
+.reglens-report li {
+  margin: 0.15rem 0;
+  line-height: 1.55;
+}
+.reglens-report blockquote {
+  border-left: 2px solid var(--gold);
+  padding-left: 0.7rem;
+  font-style: italic;
+  color: var(--ink-muted);
+  margin: 0.5rem 0;
+}
+.reglens-report code {
+  font-family: var(--font-code);
+  font-size: 0.8em;
+  background: color-mix(in srgb, var(--burgundy) 8%, transparent);
+  padding: 0.05rem 0.3rem;
+  border-radius: var(--radius-sm2);
+}
+.reglens-report strong {
+  font-weight: 600;
+  color: var(--ink);
+}
