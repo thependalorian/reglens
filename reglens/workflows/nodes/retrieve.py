@@ -27,7 +27,7 @@ async def retrieve_node(
                 pool,
                 get_embedding_client(),
                 state.get("query", ""),
-                match_count=24,
+                match_count=15,
             )
 
         if writer:

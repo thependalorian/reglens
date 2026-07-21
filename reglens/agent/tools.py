@@ -248,7 +248,7 @@ async def hybrid_search(
     pool:             asyncpg.Pool,
     embedding_client: AsyncOpenAI,
     query:            str,
-    match_count:      int = 20,
+    match_count:      int = 12,
 ) -> List[dict]:
     """
     Hybrid search (vector + full-text) across entire corpus.
@@ -266,6 +266,15 @@ async def hybrid_search(
     except Exception:
         rows = await pool.fetch(_VECTOR_SEARCH_SQL, vector, match_count)
         return [dict(r) for r in rows]
+
+
+# Cap per-chunk content shown to the model. The detector makes several
+# retrieve calls and every result stays in its message history, so unbounded
+# chunk text compounds and overflows the model context
+# (400 context_length_exceeded). The provision to quote sits near the top of a
+# chunk; the shown text is a prefix of the full chunk, so verbatim quotes from
+# it still verify against the full content in deps.retrieved_chunks.
+_MAX_CHUNK_CHARS = 1600
 
 
 def format_chunks_for_agent(chunks: List[dict]) -> str:
@@ -297,7 +306,12 @@ def format_chunks_for_agent(chunks: List[dict]) -> str:
             header += f" | {locator}"
         header += f" | score={score:.3f} | chunk_uid={c_uid}]"
 
-        parts.append(f"{header}\n{chunk.get('content', '')}")
+        content = str(chunk.get("content", ""))
+        if len(content) > _MAX_CHUNK_CHARS:
+            cut = content.rfind(" ", 0, _MAX_CHUNK_CHARS)
+            content = content[: cut if cut > 0 else _MAX_CHUNK_CHARS] + " …[truncated — do not quote past here]"
+
+        parts.append(f"{header}\n{content}")
 
     return "\n\n---\n\n".join(parts)
 

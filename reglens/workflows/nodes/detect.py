@@ -98,11 +98,18 @@ async def detect_node(
                 f"VALIDATOR FEEDBACK — correct these issues in your findings:\n{feedback}"
             )
 
+        # Start each validation retry with a clean message history: the prior
+        # iteration's history holds every retrieved chunk's text and would
+        # compound across iterations into a context-length overflow. The
+        # validator feedback is already carried in `query`, so a fresh pass
+        # loses nothing but the accumulated bulk.
+        history = state.get("pydantic_message_history", []) if iteration == 0 else []
+
         async with asyncio.timeout(AGENT_TIMEOUT_SECONDS):
             result = await sludge_detector.run(
                 query,
                 deps=deps,
-                message_history=state.get("pydantic_message_history", []),
+                message_history=history,
             )
 
         analysis      = result.output

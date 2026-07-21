@@ -52,11 +52,15 @@ async def retrieve_regulatory_documents(
         focus_area:   Optional narrowing term (e.g. 'reporting frequency', 'capital buffer')
     """
     combined = f"{search_query} {focus_area}".strip()
+    # Keep per-call breadth modest: the detector makes >=3 retrieve calls and
+    # accumulates every chunk's full content in its message history, so a large
+    # match_count compounds across calls and overflows the model context
+    # (400 "maximum context length"). 12 x 3 calls is proven safe.
     chunks   = await hybrid_search(
         ctx.deps.pool,
         ctx.deps.embedding_client,
         combined,
-        match_count=20,
+        match_count=12,
     )
     _accumulate_chunks(ctx.deps, chunks)
     return format_chunks_for_agent(chunks)
