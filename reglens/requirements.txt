@@ -1,19 +1,26 @@
-# Profile B — LangGraph + Pydantic AI (Ketchup DEV stack)
-pydantic>=2.11.7,<2.12
+# Profile B — LangGraph 1.x + Pydantic AI (Ketchup DEV stack)
+pydantic==2.13.4
 pydantic-ai==0.3.5
 pydantic-ai-slim==0.3.5
 pydantic-settings>=2.8
 
-langgraph==0.5.3
-langgraph-checkpoint==2.1.0
-langgraph-prebuilt==0.5.2
-langgraph-checkpoint-postgres==2.0.23
+langgraph==1.2.9
+langgraph-checkpoint==4.1.1
+langgraph-prebuilt==1.1.0
+langgraph-checkpoint-postgres==3.1.0
+langgraph-sdk==0.4.2
 
 # AG-UI protocol bridge for the CopilotKit frontend (/agui endpoint).
-# 0.0.23 is the last release compatible with langgraph 0.5.x;
-# newer releases require langgraph>=1 / langchain>=1.2.
-ag-ui-langgraph==0.0.23
-langchain==0.3.30
+# 0.0.42 fixes the interrupt-as-state emission and the #706 regenerate
+# detection natively (needs langgraph>=1 / langchain>=1.x), which lets the
+# HITL panel render on the supported path without the GraphInterrupt hacks.
+ag-ui-langgraph==0.0.42
+langchain==1.3.14
+langchain-core==1.5.0
+
+# copilotkit SDK — installed on request; not imported by the app yet (the
+# active integration is ag_ui_langgraph). Pulls the langgraph 1.x line above.
+copilotkit==0.1.94
 
 fastapi>=0.115.12
 uvicorn>=0.34
