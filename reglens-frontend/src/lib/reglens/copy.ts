@@ -46,6 +46,9 @@ export const COPY = {
     notesPlaceholder: "Reviewer notes (required for refine)...",
     submitted: "Decision submitted",
     noFindings: "No findings were surfaced for this pass. Refine to search further, or reject to end.",
+    notAutoValidatedHeading: "Did not pass automated validation",
+    notAutoValidatedBody: (n: number) =>
+      `These findings failed automated citation validation ${n} time${n === 1 ? "" : "s"} and reached review only because the retry budget was exhausted — not because they passed. Scrutinize the evidence closely before approving.`,
   },
 
   coverage: {

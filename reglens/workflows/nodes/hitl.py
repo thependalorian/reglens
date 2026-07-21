@@ -23,16 +23,34 @@ async def hitl_node(
     high_count = sum(1 for f in findings if f.get("severity") == "high")
     corpus_map = state.get("corpus_map", {})
 
+    validation_result = state.get("validation_result", "")
+    validation_issues = state.get("validation_issues", [])
+    auto_validated = validation_result == "valid"
+
     if writer:
+        warning = ""
+        if not auto_validated:
+            warning = (
+                f"\n**WARNING: these findings did NOT pass automated validation** "
+                f"after {state.get('iteration_count', 0)} attempts — "
+                f"{'; '.join(str(i) for i in validation_issues[:2]) or 'see audit trail'}\n"
+            )
         writer(
             f"\n**[HITL] Expert Review Required**\n"
             f"Corpus: {corpus_map.get('coverage_summary', 'regulatory documents')}\n"
             f"Findings: {len(findings)} total | {high_count} high severity\n"
-            f"Validation iterations: {state.get('iteration_count', 0)}\n\n"
+            f"Validation iterations: {state.get('iteration_count', 0)}\n"
+            f"{warning}\n"
             f"Options: approve (publish) | reject (discard) | "
             f"refine (send feedback back for another pass, optionally exhaustive)\n"
         )
 
+    # Findings reach HITL two ways: validation passed, or the 3-iteration
+    # budget was exhausted while it kept failing (route_after_validation sends
+    # to hitl either way — a human decides rather than the pipeline silently
+    # looping forever or auto-publishing). Surface which one happened: a
+    # reviewer approving a NEVER-validated finding should know that up front,
+    # not discover it by reading the audit trail.
     # Pauses execution; the payload is what review UIs render.
     decision = interrupt({
         "type":      "findings_review",
@@ -41,6 +59,8 @@ async def hitl_node(
         "coverage":  state.get("coverage", {}),
         "grounding": state.get("grounding", {}),
         "iteration_count": state.get("iteration_count", 0),
+        "auto_validated":    auto_validated,
+        "validation_issues": validation_issues if not auto_validated else [],
     })
 
     # CopilotKit's resolve() may deliver the decision as a JSON string

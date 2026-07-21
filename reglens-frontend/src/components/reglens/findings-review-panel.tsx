@@ -49,6 +49,26 @@ export function FindingsReviewPanel({
         <p className="mt-2 text-sm text-ink">{payload.summary}</p>
       ) : null}
 
+      {payload.auto_validated === false && (
+        <div className="mt-3 rounded-[4px] border border-burgundy/40 bg-burgundy/[0.06] p-3">
+          <p className="text-xs font-semibold uppercase tracking-wide text-burgundy">
+            {COPY.review.notAutoValidatedHeading}
+          </p>
+          <p className="mt-1 text-xs text-ink">
+            {COPY.review.notAutoValidatedBody(payload.iteration_count ?? 0)}
+          </p>
+          {payload.validation_issues && payload.validation_issues.length > 0 && (
+            <ul className="mt-2 space-y-1 text-xs text-ink-muted">
+              {payload.validation_issues.slice(0, 3).map((issue, i) => (
+                <li key={i} className="pl-2 border-l-2 border-burgundy/30">
+                  {issue}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
       <div className="mt-3">
         <CoverageMeter coverage={payload.coverage} />
       </div>

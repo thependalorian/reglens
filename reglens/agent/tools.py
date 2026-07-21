@@ -375,6 +375,48 @@ def verify_citations_mechanically(
     return result
 
 
+def check_source_independence(findings: List[dict], chunks: List[dict]) -> dict:
+    """
+    Quality goal 1.3 (source independence): a HORIZONTAL sludge finding claims
+    an overlap/conflict BETWEEN two instruments — that claim is only evidenced
+    if source_provisions and overlapping_provisions trace to at least two
+    distinct documents. A finding citing the same document for "source" and
+    "overlap" has not actually shown a cross-instrument conflict, regardless of
+    how confident the model sounds or whether the quotes verify verbatim.
+    Deterministic and free — traces each citation's chunk_uid to document_uid
+    via the retrieved chunks (not just document_title, which can collide).
+
+    Returns {finding_id: {"sludge_type", "distinct_documents", "independent"}}
+    for horizontal findings only (vertical/cumulative are not covered by this
+    goal — they legitimately span layers of one regulatory stack, not two
+    parallel bodies).
+    """
+    chunk_to_doc = {
+        str(c.get("chunk_uid")): str(c.get("document_uid")) for c in chunks
+    }
+
+    result: dict = {}
+    for f in findings:
+        if f.get("sludge_type") != "horizontal":
+            continue
+        fid = f.get("finding_id", "?")
+        citations = list(f.get("source_provisions", [])) + list(
+            f.get("overlapping_provisions", [])
+        )
+        docs = set()
+        for c in citations:
+            uid = c.get("chunk_uid") if isinstance(c, dict) else None
+            doc = chunk_to_doc.get(str(uid))
+            if doc and doc != "None":
+                docs.add(doc)
+        result[fid] = {
+            "sludge_type":         "horizontal",
+            "distinct_documents":  len(docs),
+            "independent":         len(docs) >= 2,
+        }
+    return result
+
+
 def grounded_confidence(finding: dict, grounding: dict) -> float:
     """
     Evidence-based confidence: verified citations / total citations,

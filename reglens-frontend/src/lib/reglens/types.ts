@@ -65,6 +65,11 @@ export interface FindingsReviewPayload {
   coverage: Coverage;
   grounding: Grounding;
   iteration_count: number;
+  /** false when findings reached review by exhausting the validation retry
+   *  budget rather than passing automated validation — the reviewer is the
+   *  first check these findings have actually had. */
+  auto_validated?: boolean;
+  validation_issues?: string[];
 }
 
 export interface ReviewDecision {
