@@ -89,6 +89,46 @@ async def lifespan(app: FastAPI):
                         input=input, agent_state=agent_state, config=config
                     )
 
+            async def _handle_stream_events(self, input):  # type: ignore[override]
+                # In this langgraph version, hitl_node's interrupt() propagates
+                # GraphInterrupt out of astream_events before ag_ui reaches its
+                # own interrupt-emission code, terminating the /agui stream so
+                # the HITL panel never renders (the interrupt is still persisted
+                # to the checkpoint). Catch it and surface the interrupt as a
+                # clean OnInterrupt + RunFinished, exactly as ag_ui does on
+                # reconnect.
+                from langgraph.errors import GraphInterrupt
+                from ag_ui.core import EventType, CustomEvent, RunFinishedEvent
+                from ag_ui_langgraph.types import LangGraphEventTypes
+                from ag_ui_langgraph.agent import dump_json_safe
+                try:
+                    async for ev in super()._handle_stream_events(input):
+                        yield ev
+                except GraphInterrupt:
+                    config = {"configurable": {"thread_id": input.thread_id}}
+                    state = await self.graph.aget_state(config)
+                    interrupts = (
+                        state.tasks[0].interrupts
+                        if state.tasks and len(state.tasks) > 0
+                        else []
+                    )
+                    for interrupt in interrupts:
+                        yield self._dispatch_event(
+                            CustomEvent(
+                                type=EventType.CUSTOM,
+                                name=LangGraphEventTypes.OnInterrupt.value,
+                                value=dump_json_safe(interrupt.value),
+                                raw_event=interrupt,
+                            )
+                        )
+                    yield self._dispatch_event(
+                        RunFinishedEvent(
+                            type=EventType.RUN_FINISHED,
+                            thread_id=input.thread_id,
+                            run_id=self.active_run.get("id"),
+                        )
+                    )
+
         add_langgraph_fastapi_endpoint(
             app,
             ResilientLangGraphAgent(
