@@ -128,6 +128,17 @@ async def lifespan(app: FastAPI):
                             run_id=self.active_run.get("id"),
                         )
                     )
+                    # Match ag_ui's normal end-of-run cleanup: without this the
+                    # run stays "active" and the next run's RUN_STARTED is
+                    # rejected ("Cannot send RUN_STARTED while a run is still
+                    # active").
+                    self.active_run = {
+                        "id": input.run_id,
+                        "thread_id": input.thread_id or "",
+                        "thinking_process": None,
+                        "node_name": None,
+                        "has_function_streaming": False,
+                    }
 
         add_langgraph_fastapi_endpoint(
             app,
