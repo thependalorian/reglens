@@ -59,16 +59,21 @@ async def lifespan(app: FastAPI):
     # AG-UI endpoint for the CopilotKit frontend — registered here so it
     # wraps the checkpointed workflow instance, not the import-time one.
     try:
-        from ag_ui_langgraph import LangGraphAgent, add_langgraph_fastapi_endpoint
+        from ag_ui_langgraph import add_langgraph_fastapi_endpoint
+        from copilotkit import LangGraphAGUIAgent
 
-        class ResilientLangGraphAgent(LangGraphAgent):
+        class ResilientLangGraphAgent(LangGraphAGUIAgent):
             """
-            RegLens is a fixed pipeline with no legitimate message
-            edit/regenerate flow. When a frontend's persisted thread drifts out
-            of sync with the checkpointer (stale localStorage, a cleared/rebuilt
-            DB), ag_ui_langgraph takes its time-travel regenerate path and
-            raises 'Message ID not found in history', which 500s the /agui
-            stream. Fall back to a normal fresh run instead of failing.
+            CopilotKit's LangGraphAGUIAgent (subclass of ag_ui_langgraph's
+            LangGraphAgent) exposed over the AG-UI /agui protocol our v2
+            frontend speaks — this is the supported CopilotKit + LangGraph
+            wiring, and it emits interrupts as state natively.
+
+            The one guard we keep: RegLens is a fixed pipeline with no message
+            edit/regenerate flow. If a frontend's persisted thread drifts out of
+            sync with the checkpointer (stale localStorage, a cleared/rebuilt
+            DB), the regenerate path can still raise 'Message ID not found in
+            history'. Fall back to a normal fresh run instead of 500-ing.
             """
             async def prepare_stream(self, input, agent_state, config):  # type: ignore[override]
                 try:

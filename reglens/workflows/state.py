@@ -7,6 +7,11 @@ from pydantic_ai.messages import ModelMessage
 from langgraph.graph.message import add_messages
 from langchain_core.messages import BaseMessage
 
+# CopilotKit's LangGraphAGUIAgent declares a "copilotkit" schema key carrying
+# frontend actions/context. Declaring the channel here is what makes the
+# copilotkit integration first-class rather than a silent passthrough.
+from copilotkit.langgraph import CopilotKitProperties
+
 
 class SludgeWorkflowState(TypedDict, total=False):
     # Input
@@ -21,6 +26,9 @@ class SludgeWorkflowState(TypedDict, total=False):
     # ag_ui_langgraph tracks message IDs through this list.
     # Without it: ValueError: Message ID not found in history
     messages: Annotated[List[BaseMessage], add_messages]
+
+    # CopilotKit frontend actions/context channel (LangGraphAGUIAgent).
+    copilotkit: CopilotKitProperties
 
     # Corpus (auto-discovered)
     corpus_map:     dict

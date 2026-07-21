@@ -18,8 +18,9 @@ ag-ui-langgraph==0.0.42
 langchain==1.3.14
 langchain-core==1.5.0
 
-# copilotkit SDK — installed on request; not imported by the app yet (the
-# active integration is ag_ui_langgraph). Pulls the langgraph 1.x line above.
+# copilotkit SDK — the /agui endpoint serves copilotkit's LangGraphAGUIAgent
+# (subclass of ag_ui_langgraph's LangGraphAgent) and the state declares the
+# copilotkit actions/context channel. Pulls the langgraph 1.x line above.
 copilotkit==0.1.94
 
 fastapi>=0.115.12
