@@ -4,6 +4,7 @@ from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.memory import MemorySaver
 
 from .state import SludgeWorkflowState
+from .nodes.triage    import triage_node, route_after_triage
 from .nodes.discovery import discover_node
 from .nodes.retrieve  import retrieve_node
 from .nodes.detect    import detect_node
@@ -35,6 +36,7 @@ async def _fallback_de(state: SludgeWorkflowState, writer=None) -> dict:
 def build_graph(checkpointer=None):
     builder = StateGraph(SludgeWorkflowState)
 
+    builder.add_node("triage",    triage_node)
     builder.add_node("discover",  discover_node)
     builder.add_node("retrieve",  retrieve_node)
     builder.add_node("detect",    detect_node)
@@ -43,7 +45,16 @@ def build_graph(checkpointer=None):
     builder.add_node("report",    report_node)
     builder.add_node("fallback",  _fallback_de)
 
-    builder.add_edge(START,      "discover")
+    # Triage is the intent gate AND the query extractor: it lifts the user's
+    # question out of `messages` into state["query"] (AG-UI clients deliver it
+    # as the last human message, not as `query`), and short-circuits casual /
+    # off-topic input. Without it every node retrieves on an empty query.
+    builder.add_edge(START, "triage")
+    builder.add_conditional_edges(
+        "triage",
+        route_after_triage,
+        {"discover": "discover", "end": END},
+    )
     builder.add_edge("discover", "retrieve")
     builder.add_edge("retrieve", "detect")
     builder.add_edge("detect",   "validate")
