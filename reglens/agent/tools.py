@@ -62,6 +62,13 @@ class AgentDeps:
     embedding_client: AsyncOpenAI
     corpus_map:       dict = field(default_factory=dict)
     retrieved_chunks: List[dict] = field(default_factory=list)
+    # Cumulative character budget for retrieval results returned to the model
+    # across ALL tool calls in one detector run. Every call's formatted chunks
+    # stay in the message history, so a multi-jurisdiction comparison that makes
+    # many calls will otherwise overflow the 128k context. ~120k chars is
+    # ~30k tokens — ample evidence, safely under the window with room for the
+    # prompt and the model's own output.
+    retrieval_char_budget: int = 120_000
 
 
 async def embed_text(client: AsyncOpenAI, text: str) -> List[float]:

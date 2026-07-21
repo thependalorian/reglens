@@ -33,6 +33,22 @@ def _accumulate_chunks(deps: AgentDeps, chunks: list) -> None:
     ]
 
 
+def _budgeted(deps: AgentDeps, formatted: str) -> str:
+    """Return formatted chunks while enforcing the cumulative retrieval budget.
+    Every tool result stays in the model's message history, so a run that makes
+    many retrieve calls (e.g. a multi-jurisdiction comparison) would otherwise
+    overflow the context window. Once the budget is spent, tell the model to
+    synthesize from what it already has instead of retrieving more."""
+    if deps.retrieval_char_budget <= 0:
+        return (
+            "RETRIEVAL BUDGET REACHED — you have gathered enough evidence. "
+            "Synthesize your findings from the sources already retrieved above; "
+            "do not request more documents."
+        )
+    deps.retrieval_char_budget -= len(formatted)
+    return formatted
+
+
 @sludge_detector.system_prompt
 def detector_system_prompt(ctx: RunContext[AgentDeps]) -> str:
     return build_detection_prompt(ctx.deps.corpus_map)
@@ -63,7 +79,7 @@ async def retrieve_regulatory_documents(
         match_count=12,
     )
     _accumulate_chunks(ctx.deps, chunks)
-    return format_chunks_for_agent(chunks)
+    return _budgeted(ctx.deps, format_chunks_for_agent(chunks))
 
 
 @sludge_detector.tool
@@ -89,7 +105,7 @@ async def search_for_specific_provision(
             f"not in corpus. Do not cite this provision."
         )
     _accumulate_chunks(ctx.deps, chunks)
-    return format_chunks_for_agent(chunks)
+    return _budgeted(ctx.deps, format_chunks_for_agent(chunks))
 
 
 # ============================================================

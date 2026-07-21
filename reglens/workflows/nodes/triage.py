@@ -79,7 +79,7 @@ async def triage_node(
         "intent":   "analysis",
         "query":    query,
         "status":   "triaged",
-        "work_log": ["[triage] intent=analysis"],
+        "work_log": [f"[triage] intent=analysis | q='{query[:50]}'"],
     }
 
 
