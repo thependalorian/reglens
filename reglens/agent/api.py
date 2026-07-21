@@ -60,9 +60,38 @@ async def lifespan(app: FastAPI):
     # wraps the checkpointed workflow instance, not the import-time one.
     try:
         from ag_ui_langgraph import LangGraphAgent, add_langgraph_fastapi_endpoint
+
+        class ResilientLangGraphAgent(LangGraphAgent):
+            """
+            RegLens is a fixed pipeline with no legitimate message
+            edit/regenerate flow. When a frontend's persisted thread drifts out
+            of sync with the checkpointer (stale localStorage, a cleared/rebuilt
+            DB), ag_ui_langgraph takes its time-travel regenerate path and
+            raises 'Message ID not found in history', which 500s the /agui
+            stream. Fall back to a normal fresh run instead of failing.
+            """
+            async def prepare_stream(self, input, agent_state, config):  # type: ignore[override]
+                try:
+                    return await super().prepare_stream(
+                        input=input, agent_state=agent_state, config=config
+                    )
+                except ValueError as e:
+                    if "Message ID not found in history" not in str(e):
+                        raise
+                    # Clear the persisted message list so the regenerate trigger
+                    # is not taken, then re-prepare as a normal run. The incoming
+                    # user message (input.messages) is preserved by the merge.
+                    try:
+                        agent_state.values["messages"] = []
+                    except Exception:
+                        pass
+                    return await super().prepare_stream(
+                        input=input, agent_state=agent_state, config=config
+                    )
+
         add_langgraph_fastapi_endpoint(
             app,
-            LangGraphAgent(
+            ResilientLangGraphAgent(
                 name="reglens",
                 graph=get_workflow(),
                 description="RegLens regulatory sludge analysis workflow",
