@@ -271,10 +271,11 @@ async def hybrid_search(
 # Cap per-chunk content shown to the model. The detector makes several
 # retrieve calls and every result stays in its message history, so unbounded
 # chunk text compounds and overflows the model context
-# (400 context_length_exceeded). The provision to quote sits near the top of a
-# chunk; the shown text is a prefix of the full chunk, so verbatim quotes from
-# it still verify against the full content in deps.retrieved_chunks.
-_MAX_CHUNK_CHARS = 1600
+# (400 context_length_exceeded). The shown text is a prefix of the full chunk,
+# so verbatim quotes from it still verify against the full content in
+# deps.retrieved_chunks. Sized to keep most of a provision visible (detection
+# quality) while ~12 chunks x a dozen calls stays well under 128k tokens.
+_MAX_CHUNK_CHARS = 2800
 
 
 def format_chunks_for_agent(chunks: List[dict]) -> str:
