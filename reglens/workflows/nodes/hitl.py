@@ -3,7 +3,7 @@ from typing import Optional, Callable
 
 from langgraph.types import interrupt
 
-from workflows.state import SludgeWorkflowState
+from ..state import SludgeWorkflowState
 
 
 async def hitl_node(

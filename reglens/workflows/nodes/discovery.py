@@ -6,7 +6,7 @@ This is the key to adaptivity: the system learns what it has before analyzing it
 """
 from __future__ import annotations
 from typing import Optional, Callable
-from workflows.state import SludgeWorkflowState
+from ..state import SludgeWorkflowState
 from agent.tools import discover_corpus_map
 from agent.clients import get_pg_pool
 

@@ -26,10 +26,10 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from ingestion.chunker   import chunk_document
-from ingestion.embedder  import embed_chunks
-from ingestion.extractor import extract_document_metadata
-from ingestion.parser    import parse_document, SUPPORTED_EXTENSIONS
+from .chunker   import chunk_document
+from .embedder  import embed_chunks
+from .extractor import extract_document_metadata
+from .parser    import parse_document, SUPPORTED_EXTENSIONS
 
 
 def new_uid() -> str:

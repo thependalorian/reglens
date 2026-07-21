@@ -11,43 +11,51 @@ from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 
-from agent.models import (
+from .models import (
     SludgeRequest,
     ApprovalRequest,
     DraftCheckRequest,
     CompareRequest,
 )
-from agent.tools import discover_corpus_map
-from agent.clients import get_pg_pool, close_pg_pool
-from agent.db_utils import (
+from .tools import discover_corpus_map
+from .clients import get_pg_pool, close_pg_pool
+from .db_utils import (
     upsert_user,
     create_session,
     get_session,
     get_session_findings,
     write_audit_log,
 )
-import workflows.graph as wf
-from workflows.graph import (
-    create_initial_state,
-    create_workflow,
-    create_postgres_checkpointer,
-)
-from agent.observability import configure_langfuse
+from workflows.graph import create_workflow, create_initial_state
+from .observability import configure_langfuse
 
 security = HTTPBearer(auto_error=False)
+
+# Mutable holder — set during lifespan
+_workflow = None
+
+
+def get_workflow():
+    if _workflow is None:
+        raise RuntimeError(
+            "Workflow not initialized — ensure lifespan has completed"
+        )
+    return _workflow
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global _workflow
+
+    # 1. Warm the DB pool
     await get_pg_pool()
-    # Durable HITL: upgrade the default MemorySaver workflow to a
-    # Postgres-checkpointed one so approvals survive restarts.
-    saver = await create_postgres_checkpointer()
-    if saver is not None:
-        wf.workflow = create_workflow(saver)
-        print("[api] LangGraph checkpointer: Postgres (HITL survives restarts)")
-    else:
-        print("[api] LangGraph checkpointer: MemorySaver (dev fallback)")
+
+    # 2. Create workflow with persistent PostgresSaver
+    #    This is what fixes the ag_ui_langgraph time-travel error —
+    #    MemorySaver loses checkpoint history on restart; PostgresSaver persists it
+    _workflow = await create_workflow()
+    print("[api] LangGraph checkpointer: Postgres (time-travel enabled)")
+
     # AG-UI endpoint for the CopilotKit frontend — registered here so it
     # wraps the checkpointed workflow instance, not the import-time one.
     try:
@@ -56,7 +64,7 @@ async def lifespan(app: FastAPI):
             app,
             LangGraphAgent(
                 name="reglens",
-                graph=wf.workflow,
+                graph=get_workflow(),
                 description="RegLens regulatory sludge analysis workflow",
             ),
             "/agui",
@@ -64,9 +72,12 @@ async def lifespan(app: FastAPI):
         print("[api] AG-UI endpoint mounted at /agui (agent: reglens)")
     except Exception as e:
         print(f"[api] AG-UI endpoint unavailable: {e}")
+
     if configure_langfuse():
         print("[api] LangFuse tracing active")
+
     yield
+
     await close_pg_pool()
 
 
@@ -195,7 +206,7 @@ async def analyze_stream(req: SludgeRequest, user=Depends(verify_token)):
         config = {"configurable": {"thread_id": session_uid}}
 
         try:
-            async for event in wf.workflow.astream(initial, config, stream_mode="updates"):
+            async for event in get_workflow().astream(initial, config, stream_mode="updates"):
                 for node_name, update in event.items():
                     # "__interrupt__" updates are tuples, not state dicts
                     if not isinstance(update, dict):
@@ -273,7 +284,7 @@ async def approve_analysis(req: ApprovalRequest, user=Depends(verify_token)):
         "notes":      req.reviewer_notes or "",
         "exhaustive": req.exhaustive,
     })
-    async for _ in wf.workflow.astream(resume, config, stream_mode="updates"):
+    async for _ in get_workflow().astream(resume, config, stream_mode="updates"):
         pass
 
     return {"status": "ok", "action": action}
@@ -287,7 +298,7 @@ async def get_findings(session_id: str, user=Depends(verify_token)):
     """
     assert_session_owner(session_id, user["id"])
     config  = {"configurable": {"thread_id": session_id}}
-    state   = await wf.workflow.aget_state(config)
+    state   = await get_workflow().aget_state(config)
     session = await get_session(await get_pg_pool(), session_id)
 
     return {
@@ -307,7 +318,7 @@ async def get_report(session_id: str, user=Depends(verify_token)):
     """Retrieve the final report for a completed session."""
     assert_session_owner(session_id, user["id"])
     config = {"configurable": {"thread_id": session_id}}
-    state  = await wf.workflow.aget_state(config)
+    state  = await get_workflow().aget_state(config)
     return {
         "session_id":   session_id,
         "final_report": state.values.get("final_report", ""),

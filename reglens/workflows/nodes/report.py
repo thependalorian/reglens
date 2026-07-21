@@ -1,7 +1,8 @@
 from __future__ import annotations
 import json
+import uuid as _uuid
 from typing import Optional, Callable
-from workflows.state import SludgeWorkflowState
+from ..state import SludgeWorkflowState
 from agent.agent import report_generator
 from agent.tools import AgentDeps
 from agent.clients import get_pg_pool, get_embedding_client
@@ -29,20 +30,33 @@ async def report_node(
     )
     reviewer_uid = state.get("reviewer_uid", "system")
 
+    # Persistence keys are UUID columns. Real runs key on a UUID thread id;
+    # if the id is malformed (never in normal use), skip DB persistence and
+    # still generate the report rather than 500-ing the whole stream.
+    def _is_uuid(s: str) -> bool:
+        try:
+            _uuid.UUID(str(s))
+            return True
+        except (ValueError, AttributeError, TypeError):
+            return False
+
+    persist = _is_uuid(session_uid)
+
     try:
         # 1. Persist findings (UUIDs from app, link rows inserted, no triggers)
         finding_uids = []
-        for fd in state.get("sludge_findings", []):
-            fuid = await save_finding(pool, session_uid, fd)
-            await update_finding_status(
-                pool,
-                finding_uid=fuid,
-                status="approved",
-                user_uid=reviewer_uid,
-                session_id=session_uid,
-                notes=state.get("reviewer_notes", "Approved via HITL"),
-            )
-            finding_uids.append(fuid)
+        if persist:
+            for fd in state.get("sludge_findings", []):
+                fuid = await save_finding(pool, session_uid, fd)
+                await update_finding_status(
+                    pool,
+                    finding_uid=fuid,
+                    status="approved",
+                    user_uid=reviewer_uid,
+                    session_id=session_uid,
+                    notes=state.get("reviewer_notes", "Approved via HITL"),
+                )
+                finding_uids.append(fuid)
 
         # 2. Build adaptive report prompt from corpus_map
         deps = AgentDeps(
@@ -84,17 +98,17 @@ async def report_node(
                                     full_report += delta
 
         # 4. Update session status — application, not trigger
-        await update_session_status(pool, session_uid, "complete", "approved")
-
-        await write_audit_log(
-            pool,
-            session_id=session_uid,
-            description=f"Report generated. {len(finding_uids)} findings persisted.",
-            log_type="report",
-            status_from="hitl_approved",
-            status_to="complete",
-            iteration_count=state.get("iteration_count", 0),
-        )
+        if persist:
+            await update_session_status(pool, session_uid, "complete", "approved")
+            await write_audit_log(
+                pool,
+                session_id=session_uid,
+                description=f"Report generated. {len(finding_uids)} findings persisted.",
+                log_type="report",
+                status_from="hitl_approved",
+                status_to="complete",
+                iteration_count=state.get("iteration_count", 0),
+            )
 
         from langchain_core.messages import AIMessage
         return {
@@ -108,7 +122,11 @@ async def report_node(
         }
 
     except Exception as e:
-        await write_audit_log(pool, session_uid, f"Report error: {e}", "error")
+        if persist:
+            try:
+                await write_audit_log(pool, session_uid, f"Report error: {e}", "error")
+            except Exception:
+                pass  # never let audit logging mask the real error
         return {
             "status":        "error",
             "error_message": str(e),

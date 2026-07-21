@@ -3,144 +3,133 @@ import os
 from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.memory import MemorySaver
 
-from workflows.state import SludgeWorkflowState
-from workflows.nodes.triage    import triage_node, route_after_triage
-from workflows.nodes.discovery import discover_node
-from workflows.nodes.retrieve  import retrieve_node
-from workflows.nodes.detect    import detect_node
-from workflows.nodes.validate  import validate_node, route_after_validation
-from workflows.nodes.hitl      import hitl_node, route_after_hitl
-from workflows.nodes.report    import report_node
+from .state import SludgeWorkflowState
+from .nodes.discovery import discover_node
+from .nodes.retrieve  import retrieve_node
+from .nodes.detect    import detect_node
+from .nodes.validate  import validate_node, route_after_validation
+from .nodes.hitl      import hitl_node, route_after_hitl
+from .nodes.report    import report_node
 
 
-async def _fallback_node(state: SludgeWorkflowState, writer=None) -> dict:
-    """Returns preliminary findings when max validation iterations reached."""
+async def _fallback_de(state: SludgeWorkflowState, writer=None) -> dict:
     if writer:
         writer(
             "\n*Max validation iterations reached. "
-            "Returning preliminary findings — expert review strongly recommended.*\n"
+            "Returning preliminary findings — expert review required.*\n"
         )
     return {
         "final_report": (
-            f"## PRELIMINARY FINDINGS (Unvalidated — {state.get('iteration_count', 0)} attempts)\n\n"
+            f"## PRELIMINARY FINDINGS (Unvalidated — "
+            f"{state.get('iteration_count', 0)} attempts)\n\n"
             f"{state.get('detection_summary', '')}\n\n"
             f"*Citation validation could not be fully completed. "
             f"All findings require expert review before action.*"
         ),
         "workflow_complete": True,
         "status":            "fallback_complete",
-        "work_log": ["[fallback] Max iterations — preliminary report returned"],
+        "work_log":          ["[fallback] Max iterations — preliminary report"],
     }
 
 
-def create_workflow(checkpointer=None):
+def build_graph(checkpointer=None):
     builder = StateGraph(SludgeWorkflowState)
 
-    # Nodes
-    builder.add_node("triage",    triage_node)
     builder.add_node("discover",  discover_node)
     builder.add_node("retrieve",  retrieve_node)
     builder.add_node("detect",    detect_node)
     builder.add_node("validate",  validate_node)
     builder.add_node("hitl",      hitl_node)
     builder.add_node("report",    report_node)
-    builder.add_node("fallback",  _fallback_node)
+    builder.add_node("fallback",  _fallback_de)
 
-    # Intent gate: casual/off-topic/unanswerable inputs never reach retrieval
-    builder.add_edge(START, "triage")
-    builder.add_conditional_edges(
-        "triage",
-        route_after_triage,
-        {"discover": "discover", "end": END},
-    )
-
-    # Fixed edges
+    builder.add_edge(START,      "discover")
     builder.add_edge("discover", "retrieve")
     builder.add_edge("retrieve", "detect")
     builder.add_edge("detect",   "validate")
 
-    # Guardrail loop: valid/max → HITL, invalid (<3) → detect
     builder.add_conditional_edges(
         "validate",
         route_after_validation,
         {"detect": "detect", "hitl": "hitl"},
     )
-
-    # HITL gate: approved → report, rejected → END,
-    # refine → back to retrieve with reviewer feedback (and optionally
-    # exhaustive retrieval) for another detection pass.
-    # The pause itself is a dynamic interrupt() inside hitl_node.
     builder.add_conditional_edges(
         "hitl",
         route_after_hitl,
-        {"report": "report", "end": END, "retrieve": "retrieve"},
+        {"report": "report", "hitl": "hitl", "end": END},
     )
 
     builder.add_edge("report",   END)
     builder.add_edge("fallback", END)
 
-    # The HITL pause is a dynamic interrupt() inside hitl_node — the
-    # graph checkpoints there and resumes with Command(resume=decision).
     return builder.compile(checkpointer=checkpointer or MemorySaver())
 
 
-async def create_postgres_checkpointer():
+async def _build_postgres_saver():
     """
-    Postgres checkpointer on DATABASE_URL so HITL state survives restarts.
-    Returns None (caller falls back to MemorySaver) when unavailable.
+    Persistent AsyncPostgresSaver on the Neon DIRECT endpoint.
+
+    Two requirements meet here:
+    - ag_ui_langgraph time-travel needs a persistent checkpointer (MemorySaver
+      loses history on restart -> 'Message ID not found in history').
+    - The checkpointer holds one connection across the multi-minute
+      detect/validate LLM calls and the HITL wait. On Neon's -pooler
+      (PgBouncer) endpoint that idle-but-held connection is killed, surfacing
+      as 'SSL SYSCALL error: EOF detected' at aput_writes. Use the DIRECT
+      endpoint (strip '-pooler.') plus TCP keepalives so it survives long runs.
     """
     dsn = os.getenv("DATABASE_URL", "")
     if not dsn:
         return None
-    try:
-        from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
-        from psycopg.rows import dict_row
-        from psycopg_pool import AsyncConnectionPool
+    from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
+    from psycopg.rows import dict_row
+    from psycopg_pool import AsyncConnectionPool
 
-        # Neon's -pooler (PgBouncer) endpoint kills a connection that sits idle
-        # while it is checked out — which is exactly what the LangGraph
-        # checkpointer does: it holds one connection across the multi-minute
-        # detect/validate LLM calls, then writes at the HITL interrupt. The
-        # pooler drop surfaces as "SSL SYSCALL error: EOF detected" at
-        # aput_writes, and check_connection cannot help because it only runs at
-        # checkout, not on an already-held connection. Use Neon's DIRECT
-        # endpoint for this long-held connection (the app's short-lived query
-        # pool can stay on the pooler).
-        checkpointer_dsn = dsn.replace("-pooler.", ".")
-
-        pool = AsyncConnectionPool(
-            conninfo=checkpointer_dsn,
-            max_size=4,
-            open=False,
-            # Belt and braces on the direct endpoint too: revalidate on
-            # checkout, recycle idle connections inside Neon's idle window,
-            # cap lifetime, and keep the socket warm with TCP keepalives so it
-            # is not seen as idle during a slow validation loop or HITL wait.
-            check=AsyncConnectionPool.check_connection,
-            max_idle=30,
-            max_lifetime=300,
-            kwargs={
-                "autocommit":        True,
-                "prepare_threshold": None,
-                "row_factory":       dict_row,
-                "keepalives":          1,
-                "keepalives_idle":     15,
-                "keepalives_interval": 10,
-                "keepalives_count":    3,
-            },
-        )
-        await pool.open()
-        saver = AsyncPostgresSaver(pool)
-        await saver.setup()
-        return saver
-    except Exception as e:
-        print(f"[graph] Postgres checkpointer unavailable ({e}) — using MemorySaver")
-        return None
+    checkpointer_dsn = dsn.replace("-pooler.", ".")  # Neon direct endpoint
+    pool = AsyncConnectionPool(
+        conninfo=checkpointer_dsn,
+        max_size=4,
+        open=False,
+        check=AsyncConnectionPool.check_connection,
+        max_idle=30,
+        max_lifetime=300,
+        kwargs={
+            "autocommit":        True,
+            "prepare_threshold": None,
+            "row_factory":       dict_row,
+            "keepalives":          1,
+            "keepalives_idle":     15,
+            "keepalives_interval": 10,
+            "keepalives_count":    3,
+        },
+    )
+    await pool.open()
+    saver = AsyncPostgresSaver(pool)
+    await saver.setup()
+    return saver
 
 
-# Default instance (MemorySaver). agent/api.py upgrades this to a
-# Postgres-checkpointed instance at startup when DATABASE_URL is set.
-workflow = create_workflow()
+# Module-level workflow — MemorySaver for import-time safety.
+# Use create_workflow() (from the FastAPI lifespan) for production instances.
+workflow = build_graph(MemorySaver())
+
+
+async def create_workflow():
+    """
+    Create the workflow with a persistent checkpointer for production.
+    Falls back to MemorySaver when DATABASE_URL is unset or the saver cannot
+    be built (dev only — time-travel will not persist across restarts).
+    """
+    if os.getenv("DATABASE_URL") and os.getenv(
+        "USE_POSTGRES_CHECKPOINTER", "true"
+    ).lower() == "true":
+        try:
+            saver = await _build_postgres_saver()
+            if saver is not None:
+                return build_graph(saver)
+        except Exception as e:
+            print(f"[graph] Postgres checkpointer unavailable ({e}) — using MemorySaver")
+    return build_graph(MemorySaver())
 
 
 def create_initial_state(
@@ -157,6 +146,7 @@ def create_initial_state(
         "request_id":                request_id,
         "user_uid":                  user_uid,
         "exhaustive":                exhaustive,
+        "messages":                  [],      # required for ag_ui_langgraph
         "iteration_count":           0,
         "approval_status":           "pending",
         "workflow_complete":         False,

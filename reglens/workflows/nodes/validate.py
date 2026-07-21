@@ -2,7 +2,7 @@ from __future__ import annotations
 import asyncio
 import json
 from typing import Optional, Callable
-from workflows.state import SludgeWorkflowState
+from ..state import SludgeWorkflowState
 from agent.agent import citation_validator
 from agent.tools import AgentDeps, format_chunks_for_agent, verify_citations_mechanically
 from agent.clients import get_pg_pool, get_embedding_client

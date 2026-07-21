@@ -2,7 +2,7 @@ from __future__ import annotations
 import asyncio
 from typing import Optional, Callable, List
 
-from workflows.state import SludgeWorkflowState
+from ..state import SludgeWorkflowState
 from agent.agent import sludge_detector
 from agent.tools import (
     AgentDeps,

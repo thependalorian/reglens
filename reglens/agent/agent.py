@@ -1,13 +1,13 @@
 from __future__ import annotations
 from pydantic_ai import Agent, RunContext
-from agent.providers import get_llm_model
-from agent.models import SludgeAnalysis, CitationValidation
-from agent.prompts import (
+from .providers import get_llm_model
+from .models import SludgeAnalysis, CitationValidation
+from .prompts import (
     build_detection_prompt,
     build_citation_validator_prompt,
     build_report_prompt,
 )
-from agent.tools import AgentDeps, hybrid_search, format_chunks_for_agent
+from .tools import AgentDeps, hybrid_search, format_chunks_for_agent
 
 
 # ============================================================

@@ -1,6 +1,6 @@
 from __future__ import annotations
 from typing import Optional, Callable
-from workflows.state import SludgeWorkflowState
+from ..state import SludgeWorkflowState
 from agent.tools import hybrid_search, fetch_all_chunks
 from agent.clients import get_pg_pool, get_embedding_client
 

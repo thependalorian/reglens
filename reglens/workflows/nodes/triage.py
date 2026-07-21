@@ -13,7 +13,7 @@ from pydantic_ai import Agent
 from agent.providers import get_llm_model
 from agent.models import TriageDecision
 from agent.prompts import TRIAGE_PROMPT
-from workflows.state import SludgeWorkflowState
+from ..state import SludgeWorkflowState
 
 
 triage_agent = Agent(
